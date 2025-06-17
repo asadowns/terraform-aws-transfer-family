@@ -30,10 +30,7 @@ resource "aws_vpc" "example" {
   # checkov:skip=CKV2_AWS_11: VPC flow logging not enabled in this minimal example
   # checkov:skip=CKV2_AWS_12: default security group restrictions omitted for demonstration
   cidr_block = "10.0.0.0/16"
-  tags = {
-    Name        = "${local.server_name}-vpc"
-    Environment = var.stage
-  }
+
 }
 
 # Public subnets
@@ -44,10 +41,7 @@ resource "aws_subnet" "public" {
   cidr_block              = cidrsubnet(aws_vpc.example.cidr_block, 8, count.index)
   map_public_ip_on_launch = true
   availability_zone       = data.aws_availability_zones.az.names[count.index]
-  tags = {
-    Name        = "${local.server_name}-public-subnet-${count.index + 1}"
-    Environment = var.stage
-  }
+
 }
 
 resource "aws_security_group" "sftp" {
@@ -56,10 +50,7 @@ resource "aws_security_group" "sftp" {
   vpc_id                  = local.vpc_id
   revoke_rules_on_delete  = true
 
-  tags = {
-    Environment = var.stage
-    Name        = "${local.server_name}-sftp-sg"
-  }
+
 }
 
 # Separate Ingress Rule for SFTP
@@ -72,9 +63,7 @@ resource "aws_vpc_security_group_ingress_rule" "sftp_ingress" {
   to_port           = 22
   cidr_ipv4         = "0.0.0.0/0"
 
-  tags = {
-    Name = "${local.server_name}-sftp-ingress"
-  }
+
 }
 
 # Separate Egress Rule for SFTP
@@ -85,17 +74,34 @@ resource "aws_vpc_security_group_egress_rule" "sftp_egress" {
   ip_protocol       = "-1"
   cidr_ipv4         = "0.0.0.0/0"
 
-  tags = {
-    Name = "${local.server_name}-sftp-egress"
+}
+
+# Internet Gateway for VPC
+resource "aws_internet_gateway" "example" {
+  vpc_id = aws_vpc.example.id
+}
+
+# Route table for public subnets
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.example.id
+  
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.example.id
   }
+}
+
+# Route table associations
+resource "aws_route_table_association" "public" {
+  count          = length(aws_subnet.public)
+  subnet_id      = aws_subnet.public[count.index].id
+  route_table_id = aws_route_table.public.id
 }
 
 resource "aws_eip" "sftp" {
   count = length(local.public_subnets)
   # checkov:skip=CKV2_AWS_19: EIPs attached to Transfer endpoints, not EC2
-  tags = {
-    Name = "${local.server_name}-sftp-eip-${count.index + 1}"
-  }
+  depends_on = [aws_internet_gateway.example]
 }
 
 ###################################################################

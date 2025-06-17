@@ -34,12 +34,6 @@ variable "logging_role" {
   default     = null
 }
 
-variable "stage" {
-  description = "Deployment stage"
-  type        = string
-  default     = "dev"
-}
-
 variable "workflow_details" {
   description = "Workflow details to attach to the transfer server"
   type = object({
